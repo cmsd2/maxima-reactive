@@ -42,16 +42,22 @@ resolve_signals(expr)$            /* sin(2.5*x) */
 
 | Function | Purpose |
 | --- | --- |
-| `widget_slider(name, lo, hi)` | register a slider-flavoured signal; returns a noun form `signal(name)` with initial value `lo` |
+| `widget_slider(name, lo, hi)` | slider-flavoured signal; initial value `lo` |
+| `widget_number(name, lo, hi, initial)` | numeric text input; initial value `initial` |
+| `widget_checkbox(name, initial)` | boolean stored as `0.0` / `1.0`; accepts `true` / `false` / `0` / `1` |
+| `widget_dropdown(name, choices)` | discrete pick from a list of numbers; initial = first choice |
 | `signal_p(x)` | `true` iff `x` is a signal noun form |
 | `signal_name(x)` | extract the name from a signal noun form |
 | `signal_value(target)` | current numeric value (accepts name string or noun form) |
-| `signal_meta(target)` | full registry entry `[name, lo, hi, current, kind]` |
+| `signal_meta(target)` | full registry entry `[name, lo, hi, current, kind, extras]` (extras is `[]` except for dropdown, where it carries the choices list) |
 | `signal_list()` | sorted list of every registered signal name |
-| `signal_set(target, v)` | update the current value; returns the new float |
+| `signal_set(target, v)` | update the current value; returns the new float.  Validates against the registered widget kind (booleans for checkbox, choices list for dropdown). |
 | `collect_signals(expr)` | walk `expr`, return a list of unique signal names |
 | `resolve_signals(expr)` | substitute every signal in `expr` with its current value |
 | `reactive_reset()` | drop every registered signal (tests / notebook re-runs) |
+
+All `widget_*` constructors return a `signal(name)` noun form, which
+is what you embed in expressions.
 
 ## What v0 deliberately doesn't do
 
@@ -62,8 +68,10 @@ resolve_signals(expr)$            /* sin(2.5*x) */
 - **Cross-cell widget identity.**  Each notebook cell that calls
   `widget_slider("freq", …)` registers/overwrites the same entry;
   there's no automatic re-binding when the cell re-runs.
-- **Widget types beyond `widget_slider`.**  Button, dropdown,
-  click-on-plot, drag point — all coming, all on the same scaffolding.
+- **Event-bound widgets.**  `widget_button` (momentary press) and
+  in-plot interactions (click-on-plot, drag-a-point) are not yet
+  wired through; they need a slightly different host-side dispatch
+  since they're not just a value-write.
 - **The renderer ↔ kernel bidirectional channel.**  That lives in
   `aximar` and the renderers, not in this Maxima package.  When
   the renderer pushes a slider event back to the kernel, the kernel

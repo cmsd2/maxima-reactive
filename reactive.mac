@@ -51,8 +51,10 @@ signal_value(target) := block([name, entry],
   fourth(entry))$
 
 /* signal_meta(target) -- return the full entry
- *   [name, lo, hi, current, kind].
- *   Used by ax-plots and other consumers to build UI metadata. */
+ *   [name, lo, hi, current, kind, extras].
+ *   EXTRAS is `[]' for slider/number/checkbox and the choices list
+ *   for dropdown.  Used by ax-plots and other consumers to build UI
+ *   metadata. */
 signal_meta(target) := block([name, entry],
   name: if stringp(target) then target else signal_name(target),
   entry: ?reactive\-get\-entry(name),
@@ -87,7 +89,61 @@ widget_slider(name, lo, hi) := block([lo_f, hi_f],
     error("widget_slider: lo and hi must be numbers; got: ", lo, hi),
   if lo_f >= hi_f then
     error("widget_slider: lo must be < hi; got: ", lo_f, hi_f),
-  ?reactive\-put\-entry(name, [name, lo_f, hi_f, lo_f, 'slider]),
+  ?reactive\-put\-entry(name, [name, lo_f, hi_f, lo_f, 'slider, []]),
+  funmake(nounify('signal), [name]))$
+
+/* widget_number(name, lo, hi, initial) -- like widget_slider but
+ *   the renderer surfaces it as a numeric text input rather than a
+ *   drag track.  Use when you want exact values typed in (frequencies,
+ *   thresholds, dimensions).  INITIAL must be in [lo, hi]. */
+widget_number(name, lo, hi, initial) := block([lo_f, hi_f, init_f],
+  if not stringp(name) then
+    error("widget_number: name must be a string; got: ", name),
+  lo_f:   float(lo),
+  hi_f:   float(hi),
+  init_f: float(initial),
+  if not numberp(lo_f) or not numberp(hi_f) or not numberp(init_f) then
+    error("widget_number: lo, hi, initial must be numbers; got: ", lo, hi, initial),
+  if lo_f >= hi_f then
+    error("widget_number: lo must be < hi; got: ", lo_f, hi_f),
+  if init_f < lo_f or init_f > hi_f then
+    error("widget_number: initial must be in [lo, hi]; got: ", init_f),
+  ?reactive\-put\-entry(name, [name, lo_f, hi_f, init_f, 'number, []]),
+  funmake(nounify('signal), [name]))$
+
+/* widget_checkbox(name, initial) -- boolean-flavoured signal stored
+ *   as 0.0 or 1.0.  INITIAL must be true/false or 0/1. */
+widget_checkbox(name, initial) := block([init_f],
+  if not stringp(name) then
+    error("widget_checkbox: name must be a string; got: ", name),
+  init_f: if initial = true then 1.0
+          else if initial = false then 0.0
+          else float(initial),
+  if not numberp(init_f) or (init_f # 0.0 and init_f # 1.0) then
+    error("widget_checkbox: initial must be true, false, 0, or 1; got: ", initial),
+  ?reactive\-put\-entry(name, [name, 0.0, 1.0, init_f, 'checkbox, []]),
+  funmake(nounify('signal), [name]))$
+
+/* widget_dropdown(name, choices) -- discrete signal whose value is
+ *   one of the numbers in CHOICES.  Initial value is the first choice.
+ *   Use the value directly in expressions (it's just a float); the
+ *   renderer shows the picker. */
+widget_dropdown(name, choices) := block([choices_f, lo_f, hi_f],
+  if not stringp(name) then
+    error("widget_dropdown: name must be a string; got: ", name),
+  if not listp(choices) or length(choices) = 0 then
+    error("widget_dropdown: choices must be a non-empty list; got: ", choices),
+  /* `float` is also a Maxima global flag (= false by default); without
+     quoting, map would try to call false on each element.  Same trap
+     applies to apply(min,...) / apply(max,...). */
+  choices_f: map('float, choices),
+  for c in choices_f do
+    if not numberp(c) then
+      error("widget_dropdown: every choice must be a number; got: ", choices),
+  lo_f: apply('min, choices_f),
+  hi_f: apply('max, choices_f),
+  ?reactive\-put\-entry(name,
+                       [name, lo_f, hi_f, first(choices_f), 'dropdown, choices_f]),
   funmake(nounify('signal), [name]))$
 
 /* ============================================================
@@ -96,19 +152,31 @@ widget_slider(name, lo, hi) := block([lo_f, hi_f],
 
 /* signal_set(target, value) -- update the current value of a
  *   signal.  TARGET may be a signal noun form or a name string.
- *   Caller is responsible for clamping to [lo, hi]; v0 does not
- *   auto-clamp. */
-signal_set(target, value) := block([name, entry, value_f],
+ *   Caller is responsible for clamping to [lo, hi] for continuous
+ *   widgets; v0 does not auto-clamp.  Checkbox values are coerced
+ *   to {0.0, 1.0} and dropdown values are validated against the
+ *   registered choices list. */
+signal_set(target, value) := block([name, entry, kind, value_f],
   name: if stringp(target) then target else signal_name(target),
   entry: ?reactive\-get\-entry(name),
   if entry = false then
     error("signal_set: no signal registered called ", name),
-  value_f: float(value),
+  kind: fifth(entry),
+  value_f: if kind = 'checkbox then
+             (if value = true then 1.0
+              else if value = false then 0.0
+              else float(value))
+           else float(value),
   if not numberp(value_f) then
     error("signal_set: value must coerce to a float; got: ", value),
+  if kind = 'checkbox and value_f # 0.0 and value_f # 1.0 then
+    error("signal_set: checkbox value must be 0 or 1; got: ", value_f),
+  if kind = 'dropdown and not member(value_f, sixth(entry)) then
+    error("signal_set: value not in dropdown choices; got: ", value_f,
+          " choices: ", sixth(entry)),
   ?reactive\-put\-entry(name,
                          [first(entry), second(entry), third(entry),
-                          value_f, fifth(entry)]),
+                          value_f, kind, sixth(entry)]),
   value_f)$
 
 /* ============================================================

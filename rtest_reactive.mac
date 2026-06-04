@@ -22,9 +22,9 @@ true;
 signal_name(widget_slider("alpha", 0, 1));
 "alpha";
 
-/* Meta carries the full entry */
+/* Meta carries the full entry, with an empty extras slot for slider */
 (reactive_reset(), signal_meta(widget_slider("g", 0, 9.8)));
-["g", 0.0, 9.8, 0.0, slider];
+["g", 0.0, 9.8, 0.0, slider, []];
 
 /* ============================================================
  * Constructor validation
@@ -157,3 +157,139 @@ sin(x) + cos(x);
 
 (reactive_reset(), signal_list());
 [];
+
+/* ============================================================
+ * widget_number: constructor + validation + signal_set
+ * ============================================================ */
+
+/* Constructor returns a signal noun form */
+(reactive_reset(), signal_p(widget_number("n", 0, 10, 3)));
+true;
+
+/* Initial value is the supplied initial, not lo */
+(reactive_reset(), signal_value(widget_number("n", 0, 10, 3)));
+3.0;
+
+/* Meta carries kind=number and the supplied bounds */
+(reactive_reset(), signal_meta(widget_number("n", 0, 10, 3)));
+["n", 0.0, 10.0, 3.0, number, []];
+
+/* Initial out of range errors */
+errcatch(widget_number("n", 0, 10, 99));
+[];
+
+errcatch(widget_number("n", 0, 10, -1));
+[];
+
+/* lo >= hi errors */
+errcatch(widget_number("n", 5, 5, 5));
+[];
+
+/* signal_set updates a number widget the same way as a slider */
+(reactive_reset(),
+ widget_number("n", 0, 10, 3),
+ signal_set("n", 7.5),
+ signal_value("n"));
+7.5;
+
+/* ============================================================
+ * widget_checkbox: constructor + validation
+ * ============================================================ */
+
+(reactive_reset(), signal_p(widget_checkbox("on", false)));
+true;
+
+(reactive_reset(), signal_value(widget_checkbox("on", false)));
+0.0;
+
+(reactive_reset(), signal_value(widget_checkbox("on", true)));
+1.0;
+
+(reactive_reset(), signal_meta(widget_checkbox("on", true)));
+["on", 0.0, 1.0, 1.0, checkbox, []];
+
+/* signal_set with true/false */
+(reactive_reset(),
+ widget_checkbox("on", false),
+ signal_set("on", true),
+ signal_value("on"));
+1.0;
+
+(reactive_reset(),
+ widget_checkbox("on", true),
+ signal_set("on", false),
+ signal_value("on"));
+0.0;
+
+/* signal_set with 0/1 */
+(reactive_reset(),
+ widget_checkbox("on", false),
+ signal_set("on", 1),
+ signal_value("on"));
+1.0;
+
+/* signal_set rejects non-boolean numbers */
+(reactive_reset(),
+ widget_checkbox("on", false),
+ errcatch(signal_set("on", 0.5)));
+[];
+
+/* Bad initial errors */
+errcatch(widget_checkbox("on", 7));
+[];
+
+/* ============================================================
+ * widget_dropdown: constructor + validation + signal_set
+ * ============================================================ */
+
+(reactive_reset(), signal_p(widget_dropdown("pick", [1, 2, 5, 10])));
+true;
+
+/* Initial value is the first choice */
+(reactive_reset(), signal_value(widget_dropdown("pick", [1, 2, 5, 10])));
+1.0;
+
+/* Meta carries kind=dropdown, lo=min(choices), hi=max(choices),
+   and the full choices list in slot 6 */
+(reactive_reset(), signal_meta(widget_dropdown("pick", [1, 2, 5, 10])));
+["pick", 1.0, 10.0, 1.0, dropdown, [1.0, 2.0, 5.0, 10.0]];
+
+/* signal_set with a value in the choices list */
+(reactive_reset(),
+ widget_dropdown("pick", [1, 2, 5, 10]),
+ signal_set("pick", 5),
+ signal_value("pick"));
+5.0;
+
+/* signal_set with a value not in the choices list errors */
+(reactive_reset(),
+ widget_dropdown("pick", [1, 2, 5, 10]),
+ errcatch(signal_set("pick", 3)));
+[];
+
+/* Empty choices list errors */
+errcatch(widget_dropdown("pick", []));
+[];
+
+/* Non-list choices errors */
+errcatch(widget_dropdown("pick", 1));
+[];
+
+/* Non-numeric choices errors */
+errcatch(widget_dropdown("pick", [1, "two", 3]));
+[];
+
+/* ============================================================
+ * Mixing widget types: each registers its own kind
+ * ============================================================ */
+
+(reactive_reset(),
+ widget_slider("s",   0, 1),
+ widget_number("n",   0, 10, 3),
+ widget_checkbox("c", false),
+ widget_dropdown("d", [1, 2]),
+ sort(signal_list()));
+["c", "d", "n", "s"];
+
+(reactive_reset(), true);
+true;
