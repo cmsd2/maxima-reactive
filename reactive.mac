@@ -1,0 +1,149 @@
+/* reactive — first-class signals for Maxima
+ *
+ * A *signal* is a named, mutable numeric value with bounds, given
+ * identity that survives normal symbolic processing.  Downstream
+ * consumers (ax-plots in particular) can:
+ *
+ *   1. detect that an expression depends on it
+ *   2. emit UI controls (slider, button, picker, ...) bound to it
+ *   3. respond to value changes from those controls and re-render
+ *
+ * Signals appear in expressions as a noun head:
+ *
+ *   ?signal('freq')   -- a noun form Maxima keeps symbolic during
+ *                        expression construction, simplification,
+ *                        diff, integrate, etc.
+ *
+ * Before numeric evaluation (sampling, float coercion, compile_grid)
+ * call resolve_signals(expr) to substitute every ?signal('name')
+ * with the signal's current numeric value.
+ *
+ * v0 deliberately leaves out:
+ *   - automatic dependency tracking via a meval read hook
+ *     (requires a Maxima core patch; not assumed here)
+ *   - cross-cell widget identity
+ *   - widget types beyond widget_slider
+ *   - the bidirectional channel that ships value changes from a
+ *     renderer back to the kernel — that's an aximar / vscode-
+ *     extension concern, not a Maxima concern
+ */
+
+load("reactive-loader.lisp")$
+
+/* ============================================================
+ * Inspection
+ * ============================================================ */
+
+/* signal_p(x) -- true iff x is a `signal' noun form. */
+signal_p(x) := not atom(x) and op(x) = nounify('signal)$
+
+/* signal_name(x) -- extract the name from a signal(...) form. */
+signal_name(x) := if signal_p(x) then args(x)[1]
+                  else error("signal_name: not a signal: ", x)$
+
+/* signal_value(target) -- current numeric value of a signal.
+ *   TARGET may be either a signal noun form or a name string. */
+signal_value(target) := block([name, entry],
+  name: if stringp(target) then target else signal_name(target),
+  entry: ?reactive\-get\-entry(name),
+  if entry = false then
+    error("signal_value: no signal registered called ", name),
+  fourth(entry))$
+
+/* signal_meta(target) -- return the full entry
+ *   [name, lo, hi, current, kind].
+ *   Used by ax-plots and other consumers to build UI metadata. */
+signal_meta(target) := block([name, entry],
+  name: if stringp(target) then target else signal_name(target),
+  entry: ?reactive\-get\-entry(name),
+  if entry = false then
+    error("signal_meta: no signal registered called ", name),
+  entry)$
+
+/* signal_list() -- list every registered signal name in
+ *   registration order. */
+signal_list() := ?reactive\-list\-names()$
+
+/* ============================================================
+ * Constructors
+ * ============================================================ */
+
+/* widget_slider(name, lo, hi) -- register a slider-flavoured
+ *   signal called NAME on the range [LO, HI], initial value LO.
+ *   Returns a noun form signal(NAME).
+ *
+ *   Example:
+ *     k : widget_slider("freq", 0.1, 5)$
+ *     ax_draw2d(explicit(sin(k*x), x, -%pi, %pi))$
+ *     /* moving the slider in the UI calls signal_set("freq", v)
+ *      * and re-renders. */
+ */
+widget_slider(name, lo, hi) := block([lo_f, hi_f],
+  if not stringp(name) then
+    error("widget_slider: name must be a string; got: ", name),
+  lo_f: float(lo),
+  hi_f: float(hi),
+  if not numberp(lo_f) or not numberp(hi_f) then
+    error("widget_slider: lo and hi must be numbers; got: ", lo, hi),
+  if lo_f >= hi_f then
+    error("widget_slider: lo must be < hi; got: ", lo_f, hi_f),
+  ?reactive\-put\-entry(name, [name, lo_f, hi_f, lo_f, 'slider]),
+  funmake(nounify('signal), [name]))$
+
+/* ============================================================
+ * Mutation
+ * ============================================================ */
+
+/* signal_set(target, value) -- update the current value of a
+ *   signal.  TARGET may be a signal noun form or a name string.
+ *   Caller is responsible for clamping to [lo, hi]; v0 does not
+ *   auto-clamp. */
+signal_set(target, value) := block([name, entry, value_f],
+  name: if stringp(target) then target else signal_name(target),
+  entry: ?reactive\-get\-entry(name),
+  if entry = false then
+    error("signal_set: no signal registered called ", name),
+  value_f: float(value),
+  if not numberp(value_f) then
+    error("signal_set: value must coerce to a float; got: ", value),
+  ?reactive\-put\-entry(name,
+                         [first(entry), second(entry), third(entry),
+                          value_f, fifth(entry)]),
+  value_f)$
+
+/* ============================================================
+ * Resolution: substitute every signal in EXPR with its
+ * current value.  Call this before any numeric evaluation
+ * (sampling, float coercion, compile_grid, ...).
+ * ============================================================ */
+
+/* collect_signals(expr) -- return a list of unique signal names
+ *   that appear anywhere in EXPR, in walk order. */
+collect_signals(expr) := block(
+  [seen: [], walker, drive],
+  walker: lambda([e],
+    if signal_p(e) then block([n: signal_name(e)],
+      if not member(n, seen) then seen: endcons(n, seen))
+    else if not atom(e) then for sub in args(e) do walker(sub)),
+  walker(expr),
+  seen)$
+
+/* resolve_signals(expr) -- substitute every signal(name) form
+ *   with the signal's current numeric value. */
+resolve_signals(expr) := block(
+  [names: collect_signals(expr), substs],
+  if names = [] then expr
+  else (
+    substs: map(lambda([n],
+                  funmake(nounify('signal), [n]) = signal_value(n)),
+                names),
+    subst(substs, expr)))$
+
+/* ============================================================
+ * Reset (for tests and notebook re-runs)
+ * ============================================================ */
+
+/* reactive_reset() -- clear every registered signal.  Useful for
+ *   test isolation; callers that hold returned signal noun forms
+ *   from before the reset will start failing on signal_value. */
+reactive_reset() := ?reactive\-reset()$

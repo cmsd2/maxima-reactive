@@ -1,0 +1,159 @@
+/* Tests for reactive */
+
+(load("reactive"), true);
+true;
+
+/* ============================================================
+ * widget_slider: construction + initial value
+ * ============================================================ */
+
+(reactive_reset(), true);
+true;
+
+/* Constructor returns a signal noun form */
+signal_p(widget_slider("freq", 0.1, 5));
+true;
+
+/* Initial value is lo */
+(reactive_reset(), signal_value(widget_slider("k", 1, 10)));
+1.0;
+
+/* Name round-trips */
+signal_name(widget_slider("alpha", 0, 1));
+"alpha";
+
+/* Meta carries the full entry */
+(reactive_reset(), signal_meta(widget_slider("g", 0, 9.8)));
+["g", 0.0, 9.8, 0.0, slider];
+
+/* ============================================================
+ * Constructor validation
+ * ============================================================ */
+
+errcatch(widget_slider(123, 0, 1));     /* non-string name */
+[];
+
+errcatch(widget_slider("x", "bad", 1)); /* non-numeric bound */
+[];
+
+errcatch(widget_slider("x", 5, 5));     /* lo >= hi */
+[];
+
+errcatch(widget_slider("x", 5, 1));     /* lo > hi */
+[];
+
+/* ============================================================
+ * signal_value / signal_meta accept name OR noun form
+ * ============================================================ */
+
+(reactive_reset(),
+ widget_slider("k", 0, 10),
+ signal_value("k"));
+0.0;
+
+(reactive_reset(),
+ block([k: widget_slider("k", 0, 10)],
+   signal_value(k)));
+0.0;
+
+errcatch(signal_value("does_not_exist"));
+[];
+
+/* ============================================================
+ * signal_set updates the current value
+ * ============================================================ */
+
+(reactive_reset(),
+ widget_slider("k", 0, 10),
+ signal_set("k", 3.5),
+ signal_value("k"));
+3.5;
+
+/* meta reflects the update */
+(reactive_reset(),
+ widget_slider("k", 0, 10),
+ signal_set("k", 2.5),
+ fourth(signal_meta("k")));
+2.5;
+
+/* set returns the float value */
+(reactive_reset(),
+ widget_slider("k", 0, 10),
+ signal_set("k", 7));
+7.0;
+
+/* unknown name errors */
+errcatch(signal_set("nope", 1));
+[];
+
+/* ============================================================
+ * Signals survive expressions symbolically
+ * ============================================================ */
+
+/* sin(k*x) keeps k symbolic */
+(reactive_reset(),
+ block([k: widget_slider("k", 0, 5)],
+   diff(sin(k*x), x)));
+'signal("k") * cos('signal("k") * x);
+
+/* ============================================================
+ * collect_signals walks the expression tree
+ * ============================================================ */
+
+(reactive_reset(),
+ widget_slider("a", 0, 1),
+ widget_slider("b", 0, 1),
+ sort(collect_signals('signal("a") + 'signal("b") * x)));
+["a", "b"];
+
+/* Duplicates collapsed to a single entry */
+(reactive_reset(),
+ widget_slider("a", 0, 1),
+ collect_signals('signal("a") * 'signal("a") + 'signal("a")));
+["a"];
+
+/* No signals → empty */
+collect_signals(sin(x) + cos(x));
+[];
+
+/* Nested deep */
+(reactive_reset(),
+ widget_slider("c", 0, 1),
+ collect_signals(diff(integrate(sin('signal("c") * x), x), x)));
+["c"];
+
+/* ============================================================
+ * resolve_signals substitutes current values
+ * ============================================================ */
+
+(reactive_reset(),
+ widget_slider("k", 0.1, 5),
+ signal_set("k", 2.0),
+ resolve_signals(sin('signal("k") * x)));
+sin(2.0 * x);
+
+/* Multiple signals */
+(reactive_reset(),
+ widget_slider("a", 0, 1),
+ widget_slider("b", 0, 1),
+ signal_set("a", 0.3),
+ signal_set("b", 0.7),
+ resolve_signals('signal("a") + 'signal("b")));
+1.0;
+
+/* Pass-through when no signals */
+resolve_signals(sin(x) + cos(x));
+sin(x) + cos(x);
+
+/* ============================================================
+ * signal_list reports registered names (sorted)
+ * ============================================================ */
+
+(reactive_reset(),
+ widget_slider("zoom", 0, 1),
+ widget_slider("alpha", 0, 1),
+ signal_list());
+["alpha", "zoom"];
+
+(reactive_reset(), signal_list());
+[];

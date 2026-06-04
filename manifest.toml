@@ -1,0 +1,10 @@
+[package]
+name = "reactive"
+version = "0.1.0"
+description = "First-class signals for Maxima — identity-bearing parameter objects that survive symbolic processing and resolve to numeric values on demand."
+license = "MIT"
+entry = "reactive.mac"
+doc = "doc/reactive.md"
+
+[test]
+files = ["rtest_reactive.mac"]
