@@ -1,21 +1,27 @@
 # reactive
 
-First-class **signals** for Maxima.  A signal is a named, bounded,
-mutable numeric value with identity that survives normal symbolic
-processing.  Downstream packages (notably `ax-plots`) can detect
-signals in user expressions, emit UI controls bound to them, and
-re-render when the controls fire.
+Named, bounded parameters for Maxima that drive sliders and interactive
+plots.
 
-This is paradigm-1 of the *reactive views* roadmap (see
-[ax-plots/doc/design/reactive-views.md](../ax-plots/doc/design/reactive-views.md)) —
-the bottom layer that everything above (widgets, views, streaming)
-builds on.
+Each parameter is a **signal**: a named numeric value with a range.  A
+signal stays symbolic through simplification, `diff`, `integrate` and
+the rest, so an expression keeps track of the signals it depends on.
+Plotting packages such as [ax-plots](https://github.com/cmsd2/ax-plots)
+find the signals in an expression, show a slider for each one, and
+redraw the plot when a slider moves.
+
+The design is described in ax-plots'
+[reactive views](https://github.com/cmsd2/ax-plots/blob/master/doc/design/reactive-views.md)
+document.
 
 ## Install
 
 ```
-mxpm install --path . --editable
+mxpm install reactive
 ```
+
+To work on the package itself, install a clone in place:
+`mxpm install --path . --editable`.
 
 ## Quick tour
 
