@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "package": "reactive",
+  "source": "./doc/reactive.md",
+  "symbols": {
+    "collect_signals": {
+      "type": "Function",
+      "signature": "collect_signals(expr)",
+      "summary": "Returns the names of the signals that appear in expr, each once, in the order a depth-first walk of the simplified expression first meets them. Maxima may reorder terms during simplification, so the order can differ from the order in your input.",
+      "body_md": "Returns the names of the signals that appear in `expr`, each once, in the order a depth-first walk of the simplified expression first meets them. Maxima may reorder terms during simplification, so the order can differ from the order in your input.\n\n```maxima\n(%i1) a : widget_slider(\"a\", 0, 1)$\n(%i2) b : widget_slider(\"b\", 0, 1)$\n(%i3) collect_signals(a*x + b*sin(a*x));\n(%o3)                         [b, a]\n```",
+      "examples": [
+        {
+          "input": "a : widget_slider(\"a\", 0, 1)$",
+          "output": ""
+        },
+        {
+          "input": "b : widget_slider(\"b\", 0, 1)$",
+          "output": ""
+        },
+        {
+          "input": "collect_signals(a*x + b*sin(a*x));",
+          "output": "[b, a]"
+        }
+      ],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "reactive_reset": {
+      "type": "Function",
+      "signature": "reactive_reset()",
+      "summary": "Clears the registry. Noun forms created before the reset still exist, but signal_value and resolve_signals fail on them until you register the names again. Tests and notebook restarts use this.",
+      "body_md": "Clears the registry. Noun forms created before the reset still exist, but `signal_value` and `resolve_signals` fail on them until you register the names again. Tests and notebook restarts use this.",
+      "examples": [],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "resolve_signals": {
+      "type": "Function",
+      "signature": "resolve_signals(expr)",
+      "summary": "Returns expr with every signal replaced by its current value. Returns expr unchanged if it has no signals. Signals an error if expr names a signal that is no longer registered.",
+      "body_md": "Returns `expr` with every signal replaced by its current value. Returns `expr` unchanged if it has no signals. Signals an error if `expr` names a signal that is no longer registered.",
+      "examples": [],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "signal": {
+      "type": "Function",
+      "signature": "signal(name)",
+      "summary": "Returns the noun form for the registered signal name. Use it to refer to a signal by name in an expression you type by hand. Signals an error if no signal has that name.",
+      "body_md": "Returns the noun form for the registered signal `name`. Use it to refer to a signal by name in an expression you type by hand. Signals an error if no signal has that name.\n\n```maxima\n(%i1) widget_slider(\"freq\", 0.1, 5)$\n(%i2) resolve_signals(sin(signal(\"freq\") * x));\n(%o2)                       sin(0.1 x)\n```",
+      "examples": [
+        {
+          "input": "widget_slider(\"freq\", 0.1, 5)$",
+          "output": ""
+        },
+        {
+          "input": "resolve_signals(sin(signal(\"freq\") * x));",
+          "output": "sin(0.1 x)"
+        }
+      ],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "signal_field": {
+      "type": "Function",
+      "signature": "signal_field(target, key)",
+      "summary": "Returns the value of field key in the registry entry for target, or false if the entry has no such field.",
+      "body_md": "Returns the value of field `key` in the registry entry for `target`, or `false` if the entry has no such field.\n\n```maxima\n(%i1) widget_slider(\"freq\", 0.1, 5)$\n(%i2) signal_field(\"freq\", hi);\n(%o2)                           5.0\n(%i3) signal_field(\"freq\", choices);\n(%o3)                          false\n```",
+      "examples": [
+        {
+          "input": "widget_slider(\"freq\", 0.1, 5)$",
+          "output": ""
+        },
+        {
+          "input": "signal_field(\"freq\", hi);",
+          "output": "5.0"
+        },
+        {
+          "input": "signal_field(\"freq\", choices);",
+          "output": "false"
+        }
+      ],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "signal_kind": {
+      "type": "Function",
+      "signature": "signal_kind(target)",
+      "summary": "Returns the widget kind of target: slider, number, checkbox or dropdown.",
+      "body_md": "Returns the widget kind of `target`: `slider`, `number`, `checkbox` or `dropdown`.",
+      "examples": [],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "signal_list": {
+      "type": "Function",
+      "signature": "signal_list()",
+      "summary": "Returns the names of every registered signal, sorted.",
+      "body_md": "Returns the names of every registered signal, sorted.",
+      "examples": [],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "signal_meta": {
+      "type": "Function",
+      "signature": "signal_meta(target)",
+      "summary": "Returns the full registry entry for target as a list of key = value equations. UI builders use this to choose and configure a control.",
+      "body_md": "Returns the full registry entry for `target` as a list of `key = value` equations. UI builders use this to choose and configure a control.",
+      "examples": [],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "signal_name": {
+      "type": "Function",
+      "signature": "signal_name(x)",
+      "summary": "Returns the name string from the signal noun form x. Signals an error if x is not a signal.",
+      "body_md": "Returns the name string from the signal noun form `x`. Signals an error if `x` is not a signal.",
+      "examples": [],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "signal_p": {
+      "type": "Function",
+      "signature": "signal_p(x)",
+      "summary": "Returns true if x is a signal noun form and false otherwise.",
+      "body_md": "Returns `true` if `x` is a signal noun form and `false` otherwise.",
+      "examples": [],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "signal_set": {
+      "type": "Function",
+      "signature": "signal_set(target, value)",
+      "summary": "Sets the current value of a signal and returns the new value as a float. target may be a signal noun form or a name string.",
+      "body_md": "Sets the current value of a signal and returns the new value as a float. `target` may be a signal noun form or a name string.\n\n- For a checkbox, `value` may be `true`, `false`, `0` or `1`. Anything else is an error.\n- For a dropdown, `value` must be one of the registered choices.\n- For a slider or number, any number is accepted and not clamped.\n\n```maxima\n(%i1) widget_slider(\"freq\", 0.1, 5)$\n(%i2) signal_set(\"freq\", 2.5);\n(%o2)                           2.5\n```",
+      "examples": [
+        {
+          "input": "widget_slider(\"freq\", 0.1, 5)$",
+          "output": ""
+        },
+        {
+          "input": "signal_set(\"freq\", 2.5);",
+          "output": "2.5"
+        }
+      ],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "signal_value": {
+      "type": "Function",
+      "signature": "signal_value(target)",
+      "summary": "Returns the current value of a signal as a float. target may be a signal noun form or a name string. Signals an error if no signal has that name.",
+      "body_md": "Returns the current value of a signal as a float. `target` may be a signal noun form or a name string. Signals an error if no signal has that name.",
+      "examples": [],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "widget_checkbox": {
+      "type": "Function",
+      "signature": "widget_checkbox(name, initial)",
+      "summary": "Registers a boolean signal stored as 0.0 or 1.0. initial may be true, false, 0 or 1. Multiply by the signal to switch a term on and off.",
+      "body_md": "Registers a boolean signal stored as `0.0` or `1.0`. `initial` may be `true`, `false`, `0` or `1`. Multiply by the signal to switch a term on and off.\n\n```maxima\n(%i1) damped : widget_checkbox(\"damped\", true)$\n(%i2) resolve_signals(exp(-damped*t) * sin(t));\n                                - 1.0 t\n(%o2)                         %e        sin(t)\n```",
+      "examples": [
+        {
+          "input": "damped : widget_checkbox(\"damped\", true)$",
+          "output": ""
+        },
+        {
+          "input": "resolve_signals(exp(-damped*t) * sin(t));\n                                - 1.0 t",
+          "output": "%e        sin(t)"
+        }
+      ],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "widget_dropdown": {
+      "type": "Function",
+      "signature": "widget_dropdown(name, choices)",
+      "summary": "Registers a signal whose value must be one of the numbers in the non-empty list choices. The initial value is the first choice, and lo/hi are the smallest and largest choices.",
+      "body_md": "Registers a signal whose value must be one of the numbers in the non-empty list `choices`. The initial value is the first choice, and `lo`/`hi` are the smallest and largest choices.\n\n```maxima\n(%i1) m : widget_dropdown(\"mode\", [1, 2, 4, 8])$\n(%i2) signal_meta(m);\n(%o2) [name = mode, kind = dropdown, lo = 1.0, hi = 8.0, value = 1.0, \n                                                choices = [1.0, 2.0, 4.0, 8.0]]\n```",
+      "examples": [
+        {
+          "input": "m : widget_dropdown(\"mode\", [1, 2, 4, 8])$",
+          "output": ""
+        },
+        {
+          "input": "signal_meta(m);",
+          "output": "[name = mode, kind = dropdown, lo = 1.0, hi = 8.0, value = 1.0, \n                                                choices = [1.0, 2.0, 4.0, 8.0]]"
+        }
+      ],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "widget_number": {
+      "type": "Function",
+      "signature": "widget_number(name, lo, hi, initial)",
+      "summary": "Registers a signal that the renderer shows as a numeric text input instead of a drag track. initial must lie in [lo, hi].",
+      "body_md": "Registers a signal that the renderer shows as a numeric text input instead of a drag track. `initial` must lie in `[lo, hi]`.\n\n```maxima\n(%i1) n : widget_number(\"threshold\", 0, 100, 42)$\n(%i2) signal_value(n);\n(%o2)                          42.0\n```",
+      "examples": [
+        {
+          "input": "n : widget_number(\"threshold\", 0, 100, 42)$",
+          "output": ""
+        },
+        {
+          "input": "signal_value(n);",
+          "output": "42.0"
+        }
+      ],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    },
+    "widget_slider": {
+      "type": "Function",
+      "signature": "widget_slider(name, lo, hi)",
+      "summary": "Registers a slider signal called name on the range [lo, hi] and returns its noun form. The initial value is lo. name must be a valid signal name, and lo must be less than hi.",
+      "body_md": "Registers a slider signal called `name` on the range `[lo, hi]` and returns its noun form. The initial value is `lo`. `name` must be a valid signal name, and `lo` must be less than `hi`.\n\n```maxima\n(%i1) k : widget_slider(\"freq\", 0.1, 5);\n(%o1)                      signal(freq)\n(%i2) signal_value(k);\n(%o2)                           0.1\n```",
+      "examples": [
+        {
+          "input": "k : widget_slider(\"freq\", 0.1, 5);",
+          "output": "signal(freq)"
+        },
+        {
+          "input": "signal_value(k);",
+          "output": "0.1"
+        }
+      ],
+      "see_also": [],
+      "section": "Definitions for reactive"
+    }
+  },
+  "sections": [
+    {
+      "title": "Introduction to reactive",
+      "body_md": "The `reactive` package gives Maxima first-class **signals**. A signal is a named, bounded, mutable numeric value that appears in expressions as a noun form printed `signal(name)`. Maxima keeps the noun form symbolic through simplification, `diff`, `integrate`, `limit`, `solve` and `subst`, so an expression built from signals keeps its dependency on them. The noun's argument is a symbol from a private Lisp package, so a user variable with the same name as a signal never captures it.\n\nDownstream packages such as `ax-plots` walk an expression with `collect_signals`, emit a UI control for each signal, and call `resolve_signals` to substitute current values before sampling. When a control moves, the host calls `signal_set` and re-evaluates the view.\n\nTo use the package:\n\n```\nload(\"reactive\");\n```\n\n### Quick start\n\n```maxima\n(%i1) load(\"reactive\")$\n(%i2) k : widget_slider(\"frequency\", 0.1, 5);\n(%o2)                    signal(frequency)\n(%i3) expr : sin(k*x);\n(%o3)                 sin(signal(frequency) x)\n(%i4) diff(expr, x);\n(%o4)        signal(frequency) cos(signal(frequency) x)\n(%i5) resolve_signals(expr);\n(%o5)                       sin(0.1 x)\n(%i6) signal_set(\"frequency\", 2.5)$\n(%i7) resolve_signals(expr);\n(%o7)                       sin(2.5 x)\n```\n\n### Names\n\nA signal name is a string of 1 to 128 ASCII letters, digits or underscores. The constructors reject anything else, because the aximar host applies the same rule when a slider moves. Names are case-sensitive: `\"freq\"` and `\"Freq\"` are different signals.\n\n### Registry\n\nEach signal lives in a per-session registry keyed by name. An entry is a list of `key = value` equations:\n\n```maxima\n[name = \"freq\", kind = slider, lo = 0.1, hi = 5.0, value = 0.1]\n```\n\n- `lo`, `hi` and `value` are floats.\n- `kind` is one of `slider`, `number`, `checkbox`, `dropdown`.\n- Dropdowns add `choices = [...]`.\n\nRead fields with `signal_field`, `signal_value` or `signal_kind` rather than by position. New widget kinds will add fields.\n\nCalling a `widget_*` constructor with an existing name replaces that entry. Re-running a notebook cell therefore resets the signal to its initial value.\n\n### Limitations\n\n- Numeric evaluation does not resolve signals automatically. Call `resolve_signals` before `float`, plotting or sampling. (`ax-plots` does this for you.)\n- `signal_set` does not clamp slider or number values to `[lo, hi]`. The caller (normally the renderer) enforces the range.\n- The package has no event-bound widgets yet (buttons, click or drag on a plot)."
+    },
+    {
+      "title": "Definitions for reactive",
+      "body_md": ""
+    }
+  ]
+}

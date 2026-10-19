@@ -1,0 +1,407 @@
+This is reactive.info, produced by makeinfo version 7.1 from
+reactive.texi.
+
+
+File: reactive.info,  Node: Top,  Next: Package reactive,  Up: (dir)
+
+Top
+***
+
+* Menu:
+
+* Package reactive::
+
+
+File: reactive.info,  Node: Package reactive,  Next: Function and variable index,  Prev: Top,  Up: Top
+
+1 Package reactive
+******************
+
+* Menu:
+
+* Introduction to reactive::
+* Definitions for reactive::
+
+
+File: reactive.info,  Node: Introduction to reactive,  Next: Definitions for reactive,  Up: Package reactive
+
+1.1 Introduction to reactive
+============================
+
+The ‘reactive’ package gives Maxima first-class *signals*.  A signal is
+a named, bounded, mutable numeric value that appears in expressions as a
+noun form printed ‘signal(name)’.  Maxima keeps the noun form symbolic
+through simplification, ‘diff’, ‘integrate’, ‘limit’, ‘solve’ and
+‘subst’, so an expression built from signals keeps its dependency on
+them.  The noun's argument is a symbol from a private Lisp package, so a
+user variable with the same name as a signal never captures it.
+
+Downstream packages such as ‘ax-plots’ walk an expression with
+‘collect_signals’, emit a UI control for each signal, and call
+‘resolve_signals’ to substitute current values before sampling.  When a
+control moves, the host calls ‘signal_set’ and re-evaluates the view.
+
+To use the package:
+
+load("reactive");
+
+* Menu:
+
+* Quick start::
+* Names::
+* Registry::
+* Limitations::
+
+
+File: reactive.info,  Node: Quick start,  Next: Names,  Up: Introduction to reactive
+
+1.1.1 Quick start
+-----------------
+
+(%i1) load("reactive")$
+(%i2) k : widget_slider("frequency", 0.1, 5);
+(%o2)                    signal(frequency)
+(%i3) expr : sin(k*x);
+(%o3)                 sin(signal(frequency) x)
+(%i4) diff(expr, x);
+(%o4)        signal(frequency) cos(signal(frequency) x)
+(%i5) resolve_signals(expr);
+(%o5)                       sin(0.1 x)
+(%i6) signal_set("frequency", 2.5)$
+(%i7) resolve_signals(expr);
+(%o7)                       sin(2.5 x)
+
+
+File: reactive.info,  Node: Names,  Next: Registry,  Prev: Quick start,  Up: Introduction to reactive
+
+1.1.2 Names
+-----------
+
+A signal name is a string of 1 to 128 ASCII letters, digits or
+underscores.  The constructors reject anything else, because the aximar
+host applies the same rule when a slider moves.  Names are
+case-sensitive: ‘"freq"’ and ‘"Freq"’ are different signals.
+
+
+File: reactive.info,  Node: Registry,  Next: Limitations,  Prev: Names,  Up: Introduction to reactive
+
+1.1.3 Registry
+--------------
+
+Each signal lives in a per-session registry keyed by name.  An entry is
+a list of ‘key = value’ equations:
+
+[name = "freq", kind = slider, lo = 0.1, hi = 5.0, value = 0.1]
+
+   • ‘lo’, ‘hi’ and ‘value’ are floats.
+   • ‘kind’ is one of ‘slider’, ‘number’, ‘checkbox’, ‘dropdown’.
+   • Dropdowns add ‘choices = [...]’.
+
+Read fields with ‘signal_field’, ‘signal_value’ or ‘signal_kind’ rather
+than by position.  New widget kinds will add fields.
+
+Calling a ‘widget_*’ constructor with an existing name replaces that
+entry.  Re-running a notebook cell therefore resets the signal to its
+initial value.
+
+
+File: reactive.info,  Node: Limitations,  Prev: Registry,  Up: Introduction to reactive
+
+1.1.4 Limitations
+-----------------
+
+   • Numeric evaluation does not resolve signals automatically.  Call
+     ‘resolve_signals’ before ‘float’, plotting or sampling.
+     (‘ax-plots’ does this for you.)
+   • ‘signal_set’ does not clamp slider or number values to ‘[lo, hi]’.
+     The caller (normally the renderer) enforces the range.
+   • The package has no event-bound widgets yet (buttons, click or drag
+     on a plot).
+
+
+File: reactive.info,  Node: Definitions for reactive,  Prev: Introduction to reactive,  Up: Package reactive
+
+1.2 Definitions for reactive
+============================
+
+* Menu:
+
+* Function widget_slider name lo hi::
+* Function widget_number name lo hi initial::
+* Function widget_checkbox name initial::
+* Function widget_dropdown name choices::
+* Function signal name::
+* Function signal_p x::
+* Function signal_name x::
+* Function signal_value target::
+* Function signal_kind target::
+* Function signal_field target key::
+* Function signal_meta target::
+* Function signal_list ::
+* Function signal_set target value::
+* Function collect_signals expr::
+* Function resolve_signals expr::
+* Function reactive_reset ::
+
+
+File: reactive.info,  Node: Function widget_slider name lo hi,  Next: Function widget_number name lo hi initial,  Up: Definitions for reactive
+
+ -- Function: widget_slider (NAME, LO, HI)
+     Registers a slider signal called ‘name’ on the range ‘[lo, hi]’ and
+     returns its noun form.  The initial value is ‘lo’.  ‘name’ must be
+     a valid signal name, and ‘lo’ must be less than ‘hi’.
+
+     (%i1) k : widget_slider("freq", 0.1, 5);
+     (%o1)                      signal(freq)
+     (%i2) signal_value(k);
+     (%o2)                           0.1
+
+
+File: reactive.info,  Node: Function widget_number name lo hi initial,  Next: Function widget_checkbox name initial,  Prev: Function widget_slider name lo hi,  Up: Definitions for reactive
+
+ -- Function: widget_number (NAME, LO, HI, INITIAL)
+     Registers a signal that the renderer shows as a numeric text input
+     instead of a drag track.  ‘initial’ must lie in ‘[lo, hi]’.
+
+     (%i1) n : widget_number("threshold", 0, 100, 42)$
+     (%i2) signal_value(n);
+     (%o2)                          42.0
+
+
+File: reactive.info,  Node: Function widget_checkbox name initial,  Next: Function widget_dropdown name choices,  Prev: Function widget_number name lo hi initial,  Up: Definitions for reactive
+
+ -- Function: widget_checkbox (NAME, INITIAL)
+     Registers a boolean signal stored as ‘0.0’ or ‘1.0’.  ‘initial’ may
+     be ‘true’, ‘false’, ‘0’ or ‘1’.  Multiply by the signal to switch a
+     term on and off.
+
+     (%i1) damped : widget_checkbox("damped", true)$
+     (%i2) resolve_signals(exp(-damped*t) * sin(t));
+                                     - 1.0 t
+     (%o2)                         %e        sin(t)
+
+
+File: reactive.info,  Node: Function widget_dropdown name choices,  Next: Function signal name,  Prev: Function widget_checkbox name initial,  Up: Definitions for reactive
+
+ -- Function: widget_dropdown (NAME, CHOICES)
+     Registers a signal whose value must be one of the numbers in the
+     non-empty list ‘choices’.  The initial value is the first choice,
+     and ‘lo’/‘hi’ are the smallest and largest choices.
+
+     (%i1) m : widget_dropdown("mode", [1, 2, 4, 8])$
+     (%i2) signal_meta(m);
+     (%o2) [name = mode, kind = dropdown, lo = 1.0, hi = 8.0, value = 1.0, 
+                                                     choices = [1.0, 2.0, 4.0, 8.0]]
+
+
+File: reactive.info,  Node: Function signal name,  Next: Function signal_p x,  Prev: Function widget_dropdown name choices,  Up: Definitions for reactive
+
+ -- Function: signal (NAME)
+     Returns the noun form for the registered signal ‘name’.  Use it to
+     refer to a signal by name in an expression you type by hand.
+     Signals an error if no signal has that name.
+
+     (%i1) widget_slider("freq", 0.1, 5)$
+     (%i2) resolve_signals(sin(signal("freq") * x));
+     (%o2)                       sin(0.1 x)
+
+
+File: reactive.info,  Node: Function signal_p x,  Next: Function signal_name x,  Prev: Function signal name,  Up: Definitions for reactive
+
+ -- Function: signal_p (X)
+     Returns ‘true’ if ‘x’ is a signal noun form and ‘false’ otherwise.
+
+
+File: reactive.info,  Node: Function signal_name x,  Next: Function signal_value target,  Prev: Function signal_p x,  Up: Definitions for reactive
+
+ -- Function: signal_name (X)
+     Returns the name string from the signal noun form ‘x’.  Signals an
+     error if ‘x’ is not a signal.
+
+
+File: reactive.info,  Node: Function signal_value target,  Next: Function signal_kind target,  Prev: Function signal_name x,  Up: Definitions for reactive
+
+ -- Function: signal_value (TARGET)
+     Returns the current value of a signal as a float.  ‘target’ may be
+     a signal noun form or a name string.  Signals an error if no signal
+     has that name.
+
+
+File: reactive.info,  Node: Function signal_kind target,  Next: Function signal_field target key,  Prev: Function signal_value target,  Up: Definitions for reactive
+
+ -- Function: signal_kind (TARGET)
+     Returns the widget kind of ‘target’: ‘slider’, ‘number’, ‘checkbox’
+     or ‘dropdown’.
+
+
+File: reactive.info,  Node: Function signal_field target key,  Next: Function signal_meta target,  Prev: Function signal_kind target,  Up: Definitions for reactive
+
+ -- Function: signal_field (TARGET, KEY)
+     Returns the value of field ‘key’ in the registry entry for
+     ‘target’, or ‘false’ if the entry has no such field.
+
+     (%i1) widget_slider("freq", 0.1, 5)$
+     (%i2) signal_field("freq", hi);
+     (%o2)                           5.0
+     (%i3) signal_field("freq", choices);
+     (%o3)                          false
+
+
+File: reactive.info,  Node: Function signal_meta target,  Next: Function signal_list,  Prev: Function signal_field target key,  Up: Definitions for reactive
+
+ -- Function: signal_meta (TARGET)
+     Returns the full registry entry for ‘target’ as a list of ‘key =
+     value’ equations.  UI builders use this to choose and configure a
+     control.
+
+
+File: reactive.info,  Node: Function signal_list,  Next: Function signal_set target value,  Prev: Function signal_meta target,  Up: Definitions for reactive
+
+ -- Function: signal_list ()
+     Returns the names of every registered signal, sorted.
+
+
+File: reactive.info,  Node: Function signal_set target value,  Next: Function collect_signals expr,  Prev: Function signal_list,  Up: Definitions for reactive
+
+ -- Function: signal_set (TARGET, VALUE)
+     Sets the current value of a signal and returns the new value as a
+     float.  ‘target’ may be a signal noun form or a name string.
+
+        • For a checkbox, ‘value’ may be ‘true’, ‘false’, ‘0’ or ‘1’.
+          Anything else is an error.
+        • For a dropdown, ‘value’ must be one of the registered choices.
+        • For a slider or number, any number is accepted and not
+          clamped.
+
+     (%i1) widget_slider("freq", 0.1, 5)$
+     (%i2) signal_set("freq", 2.5);
+     (%o2)                           2.5
+
+
+File: reactive.info,  Node: Function collect_signals expr,  Next: Function resolve_signals expr,  Prev: Function signal_set target value,  Up: Definitions for reactive
+
+ -- Function: collect_signals (EXPR)
+     Returns the names of the signals that appear in ‘expr’, each once,
+     in the order a depth-first walk of the simplified expression first
+     meets them.  Maxima may reorder terms during simplification, so the
+     order can differ from the order in your input.
+
+     (%i1) a : widget_slider("a", 0, 1)$
+     (%i2) b : widget_slider("b", 0, 1)$
+     (%i3) collect_signals(a*x + b*sin(a*x));
+     (%o3)                         [b, a]
+
+
+File: reactive.info,  Node: Function resolve_signals expr,  Next: Function reactive_reset,  Prev: Function collect_signals expr,  Up: Definitions for reactive
+
+ -- Function: resolve_signals (EXPR)
+     Returns ‘expr’ with every signal replaced by its current value.
+     Returns ‘expr’ unchanged if it has no signals.  Signals an error if
+     ‘expr’ names a signal that is no longer registered.
+
+
+File: reactive.info,  Node: Function reactive_reset,  Prev: Function resolve_signals expr,  Up: Definitions for reactive
+
+ -- Function: reactive_reset ()
+     Clears the registry.  Noun forms created before the reset still
+     exist, but ‘signal_value’ and ‘resolve_signals’ fail on them until
+     you register the names again.  Tests and notebook restarts use
+     this.
+
+
+File: reactive.info,  Node: Function and variable index,  Prev: Package reactive,  Up: Top
+
+Appendix A Function and variable index
+**************************************
+
+ [index ]
+* Menu:
+
+* collect_signals:                       Function collect_signals expr.
+                                                                (line 3)
+* reactive_reset:                        Function reactive_reset.
+                                                                (line 3)
+* resolve_signals:                       Function resolve_signals expr.
+                                                                (line 3)
+* signal:                                Function signal name.  (line 3)
+* signal_field:                          Function signal_field target key.
+                                                                (line 3)
+* signal_kind:                           Function signal_kind target.
+                                                                (line 3)
+* signal_list:                           Function signal_list.  (line 3)
+* signal_meta:                           Function signal_meta target.
+                                                                (line 3)
+* signal_name:                           Function signal_name x.
+                                                                (line 3)
+* signal_p:                              Function signal_p x.   (line 3)
+* signal_set:                            Function signal_set target value.
+                                                                (line 3)
+* signal_value:                          Function signal_value target.
+                                                                (line 3)
+* widget_checkbox:                       Function widget_checkbox name initial.
+                                                                (line 3)
+* widget_dropdown:                       Function widget_dropdown name choices.
+                                                                (line 3)
+* widget_number:                         Function widget_number name lo hi initial.
+                                                                (line 3)
+* widget_slider:                         Function widget_slider name lo hi.
+                                                                (line 3)
+
+
+
+Tag Table:
+Node: Top77
+Node: Package reactive189
+Ref: #package-reactive334
+Node: Introduction to reactive402
+Ref: #introduction-to-reactive573
+Node: Quick start1480
+Ref: #quick-start1605
+Node: Names2038
+Ref: #names2168
+Node: Registry2432
+Ref: #registry2568
+Node: Limitations3229
+Ref: #limitations3357
+Node: Definitions for reactive3773
+Ref: #definitions-for-reactive3944
+Node: Function widget_slider name lo hi4492
+Ref: #function-widget_slider-name-lo-hi4681
+Node: Function widget_number name lo hi initial5071
+Ref: #function-widget_number-name-lo-hi-initial5315
+Node: Function widget_checkbox name initial5586
+Ref: #function-widget_checkbox-name-initial5828
+Node: Function widget_dropdown name choices6229
+Ref: #function-widget_dropdown-name-choices6450
+Node: Function signal name6904
+Ref: #function-signal-name7089
+Node: Function signal_p x7422
+Ref: #function-signal_p-x7591
+Node: Function signal_name x7676
+Ref: #function-signal_name-x7856
+Node: Function signal_value target7972
+Ref: #function-signal_value-target8166
+Node: Function signal_kind target8336
+Ref: #function-signal_kind-target8539
+Node: Function signal_field target key8653
+Ref: #function-signal_field-target-key8861
+Node: Function signal_meta target9201
+Ref: #function-signal_meta-target9396
+Node: Function signal_list9560
+Ref: #function-signal_list9749
+Node: Function signal_set target value9809
+Ref: #function-signal_set-target-value10012
+Node: Function collect_signals expr10569
+Ref: #function-collect_signals-expr10777
+Node: Function resolve_signals expr11222
+Ref: #function-resolve_signals-expr11421
+Node: Function reactive_reset11633
+Ref: #function-reactive_reset11789
+Node: Function and variable index12018
+
+End Tag Table
+
+
+Local Variables:
+coding: utf-8
+End:
