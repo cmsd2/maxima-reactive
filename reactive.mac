@@ -8,21 +8,22 @@
  *   2. emit UI controls (slider, button, picker, ...) bound to it
  *   3. respond to value changes from those controls and re-render
  *
- * Signals appear in expressions as a noun head:
- *
- *   ?signal('freq')   -- a noun form Maxima keeps symbolic during
- *                        expression construction, simplification,
- *                        diff, integrate, etc.
+ * Signals appear in expressions as a noun form that prints as
+ * signal(freq).  Its argument is a symbol from a private Lisp
+ * package (see reactive-loader.lisp), so Maxima keeps it symbolic
+ * through simplification, diff, integrate, limit, solve, etc., and
+ * no user variable can capture it.  Get one from a widget_*
+ * constructor or from signal("freq").
  *
  * Before numeric evaluation (sampling, float coercion, compile_grid)
- * call resolve_signals(expr) to substitute every ?signal('name')
- * with the signal's current numeric value.
+ * call resolve_signals(expr) to substitute every signal with its
+ * current numeric value.
  *
  * v0 deliberately leaves out:
  *   - automatic dependency tracking via a meval read hook
  *     (requires a Maxima core patch; not assumed here)
  *   - cross-cell widget identity
- *   - widget types beyond widget_slider
+ *   - event-bound widgets (buttons, click/drag on a plot)
  *   - the bidirectional channel that ships value changes from a
  *     renderer back to the kernel — that's an aximar / vscode-
  *     extension concern, not a Maxima concern
@@ -31,39 +32,83 @@
 load("reactive-loader.lisp")$
 
 /* ============================================================
+ * Internal helpers
+ * ============================================================ */
+
+/* reactive__form(name) -- the noun form for signal NAME. */
+reactive__form(name) :=
+  funmake(nounify('signal), [?reactive\-symbol(name)])$
+
+/* reactive__check_name(fn, name) -- error unless NAME is a valid
+ *   signal name: 1-128 ASCII letters, digits or underscores. */
+reactive__check_name(fn, name) :=
+  if not ?reactive\-valid\-name\-p(name) then
+    error(sconcat(fn, ": name must be a string of 1-128 ASCII letters, digits or underscores; got:"), name)$
+
+/* reactive__entry(fn, target) -- the registry entry for TARGET (a
+ *   name string or signal noun form); errors if none exists. */
+reactive__entry(fn, target) := block([name, entry],
+  name: if stringp(target) then target else signal_name(target),
+  entry: ?reactive\-get\-entry(name),
+  if entry = false then
+    error(sconcat(fn, ": no signal registered called"), name),
+  entry)$
+
+/* reactive__register(name, kind, lo, hi, value, extras) -- store an
+ *   entry and return the signal's noun form.  EXTRAS is a list of
+ *   further key = value equations. */
+reactive__register(name, kind, lo, hi, v, extras) := (
+  ?reactive\-put\-entry(name,
+    append(['name = name, 'kind = kind, 'lo = lo, 'hi = hi, 'value = v],
+           extras)),
+  reactive__form(name))$
+
+/* ============================================================
  * Inspection
  * ============================================================ */
 
-/* signal_p(x) -- true iff x is a `signal' noun form. */
-signal_p(x) := not atom(x) and op(x) = nounify('signal)$
+/* signal(name) -- the noun form for an already-registered signal.
+ *   Use this to refer to a signal by name in an expression typed by
+ *   hand, e.g. sin(signal("freq") * x). */
+signal(name) :=
+  if ?reactive\-symbol\-p(name) then funmake(nounify('signal), [name])
+  else (
+    reactive__entry("signal", name),
+    reactive__form(name))$
 
-/* signal_name(x) -- extract the name from a signal(...) form. */
-signal_name(x) := if signal_p(x) then args(x)[1]
+/* signal_p(x) -- true iff x is a signal noun form. */
+signal_p(x) := not atom(x) and op(x) = nounify('signal)
+               and length(args(x)) = 1
+               and ?reactive\-symbol\-p(first(args(x))) = true$
+
+/* signal_name(x) -- extract the name string from a signal form. */
+signal_name(x) := if signal_p(x) then ?reactive\-symbol\-name(first(args(x)))
                   else error("signal_name: not a signal: ", x)$
 
-/* signal_value(target) -- current numeric value of a signal.
- *   TARGET may be either a signal noun form or a name string. */
-signal_value(target) := block([name, entry],
-  name: if stringp(target) then target else signal_name(target),
-  entry: ?reactive\-get\-entry(name),
-  if entry = false then
-    error("signal_value: no signal registered called ", name),
-  fourth(entry))$
+/* signal_meta(target) -- the full registry entry as a list of
+ *   key = value equations:
+ *     [name = "freq", kind = slider, lo = 0.1, hi = 5.0, value = 0.1]
+ *   Dropdowns add choices = [...].  TARGET may be a signal noun form
+ *   or a name string.  Read single fields with signal_field rather
+ *   than by position: later widget kinds may add fields. */
+signal_meta(target) := reactive__entry("signal_meta", target)$
 
-/* signal_meta(target) -- return the full entry
- *   [name, lo, hi, current, kind, extras].
- *   EXTRAS is `[]' for slider/number/checkbox and the choices list
- *   for dropdown.  Used by ax-plots and other consumers to build UI
- *   metadata. */
-signal_meta(target) := block([name, entry],
-  name: if stringp(target) then target else signal_name(target),
-  entry: ?reactive\-get\-entry(name),
-  if entry = false then
-    error("signal_meta: no signal registered called ", name),
-  entry)$
+/* signal_field(target, key) -- one field of the registry entry, or
+ *   false if the entry has no such field. */
+signal_field(target, key) :=
+  assoc(key, reactive__entry("signal_field", target), false)$
 
-/* signal_list() -- list every registered signal name in
- *   registration order. */
+/* signal_value(target) -- current numeric value of a signal. */
+signal_value(target) :=
+  assoc('value, reactive__entry("signal_value", target))$
+
+/* signal_kind(target) -- widget kind: slider, number, checkbox or
+ *   dropdown. */
+signal_kind(target) :=
+  assoc('kind, reactive__entry("signal_kind", target))$
+
+/* signal_list() -- list every registered signal name, sorted
+ *   by name. */
 signal_list() := ?reactive\-list\-names()$
 
 /* ============================================================
@@ -72,7 +117,7 @@ signal_list() := ?reactive\-list\-names()$
 
 /* widget_slider(name, lo, hi) -- register a slider-flavoured
  *   signal called NAME on the range [LO, HI], initial value LO.
- *   Returns a noun form signal(NAME).
+ *   Returns the signal's noun form.
  *
  *   Example:
  *     k : widget_slider("freq", 0.1, 5)$
@@ -81,24 +126,21 @@ signal_list() := ?reactive\-list\-names()$
  *      * and re-renders. */
  */
 widget_slider(name, lo, hi) := block([lo_f, hi_f],
-  if not stringp(name) then
-    error("widget_slider: name must be a string; got: ", name),
+  reactive__check_name("widget_slider", name),
   lo_f: float(lo),
   hi_f: float(hi),
   if not numberp(lo_f) or not numberp(hi_f) then
     error("widget_slider: lo and hi must be numbers; got: ", lo, hi),
   if lo_f >= hi_f then
     error("widget_slider: lo must be < hi; got: ", lo_f, hi_f),
-  ?reactive\-put\-entry(name, [name, lo_f, hi_f, lo_f, 'slider, []]),
-  funmake(nounify('signal), [name]))$
+  reactive__register(name, 'slider, lo_f, hi_f, lo_f, []))$
 
 /* widget_number(name, lo, hi, initial) -- like widget_slider but
  *   the renderer surfaces it as a numeric text input rather than a
  *   drag track.  Use when you want exact values typed in (frequencies,
  *   thresholds, dimensions).  INITIAL must be in [lo, hi]. */
 widget_number(name, lo, hi, initial) := block([lo_f, hi_f, init_f],
-  if not stringp(name) then
-    error("widget_number: name must be a string; got: ", name),
+  reactive__check_name("widget_number", name),
   lo_f:   float(lo),
   hi_f:   float(hi),
   init_f: float(initial),
@@ -108,29 +150,25 @@ widget_number(name, lo, hi, initial) := block([lo_f, hi_f, init_f],
     error("widget_number: lo must be < hi; got: ", lo_f, hi_f),
   if init_f < lo_f or init_f > hi_f then
     error("widget_number: initial must be in [lo, hi]; got: ", init_f),
-  ?reactive\-put\-entry(name, [name, lo_f, hi_f, init_f, 'number, []]),
-  funmake(nounify('signal), [name]))$
+  reactive__register(name, 'number, lo_f, hi_f, init_f, []))$
 
 /* widget_checkbox(name, initial) -- boolean-flavoured signal stored
  *   as 0.0 or 1.0.  INITIAL must be true/false or 0/1. */
 widget_checkbox(name, initial) := block([init_f],
-  if not stringp(name) then
-    error("widget_checkbox: name must be a string; got: ", name),
+  reactive__check_name("widget_checkbox", name),
   init_f: if initial = true then 1.0
           else if initial = false then 0.0
           else float(initial),
   if not numberp(init_f) or (init_f # 0.0 and init_f # 1.0) then
     error("widget_checkbox: initial must be true, false, 0, or 1; got: ", initial),
-  ?reactive\-put\-entry(name, [name, 0.0, 1.0, init_f, 'checkbox, []]),
-  funmake(nounify('signal), [name]))$
+  reactive__register(name, 'checkbox, 0.0, 1.0, init_f, []))$
 
 /* widget_dropdown(name, choices) -- discrete signal whose value is
  *   one of the numbers in CHOICES.  Initial value is the first choice.
  *   Use the value directly in expressions (it's just a float); the
  *   renderer shows the picker. */
 widget_dropdown(name, choices) := block([choices_f, lo_f, hi_f],
-  if not stringp(name) then
-    error("widget_dropdown: name must be a string; got: ", name),
+  reactive__check_name("widget_dropdown", name),
   if not listp(choices) or length(choices) = 0 then
     error("widget_dropdown: choices must be a non-empty list; got: ", choices),
   /* `float` is also a Maxima global flag (= false by default); without
@@ -142,42 +180,38 @@ widget_dropdown(name, choices) := block([choices_f, lo_f, hi_f],
       error("widget_dropdown: every choice must be a number; got: ", choices),
   lo_f: apply('min, choices_f),
   hi_f: apply('max, choices_f),
-  ?reactive\-put\-entry(name,
-                       [name, lo_f, hi_f, first(choices_f), 'dropdown, choices_f]),
-  funmake(nounify('signal), [name]))$
+  reactive__register(name, 'dropdown, lo_f, hi_f, first(choices_f),
+                     ['choices = choices_f]))$
 
 /* ============================================================
  * Mutation
  * ============================================================ */
 
-/* signal_set(target, value) -- update the current value of a
- *   signal.  TARGET may be a signal noun form or a name string.
- *   Caller is responsible for clamping to [lo, hi] for continuous
- *   widgets; v0 does not auto-clamp.  Checkbox values are coerced
- *   to {0.0, 1.0} and dropdown values are validated against the
- *   registered choices list. */
-signal_set(target, value) := block([name, entry, kind, value_f],
-  name: if stringp(target) then target else signal_name(target),
-  entry: ?reactive\-get\-entry(name),
-  if entry = false then
-    error("signal_set: no signal registered called ", name),
-  kind: fifth(entry),
-  value_f: if kind = 'checkbox then
-             (if value = true then 1.0
-              else if value = false then 0.0
-              else float(value))
-           else float(value),
-  if not numberp(value_f) then
-    error("signal_set: value must coerce to a float; got: ", value),
-  if kind = 'checkbox and value_f # 0.0 and value_f # 1.0 then
-    error("signal_set: checkbox value must be 0 or 1; got: ", value_f),
-  if kind = 'dropdown and not member(value_f, sixth(entry)) then
-    error("signal_set: value not in dropdown choices; got: ", value_f,
-          " choices: ", sixth(entry)),
-  ?reactive\-put\-entry(name,
-                         [first(entry), second(entry), third(entry),
-                          value_f, kind, sixth(entry)]),
-  value_f)$
+/* signal_set(target, v) -- update the current value of a signal.
+ *   TARGET may be a signal noun form or a name string.  Caller is
+ *   responsible for clamping to [lo, hi] for continuous widgets; v0
+ *   does not auto-clamp.  Checkbox values are coerced to {0.0, 1.0}
+ *   and dropdown values are validated against the registered choices
+ *   list. */
+signal_set(target, v) := block([entry, kind, v_f],
+  entry: reactive__entry("signal_set", target),
+  kind: assoc('kind, entry),
+  v_f: if kind = 'checkbox then
+         (if v = true then 1.0
+          else if v = false then 0.0
+          else float(v))
+       else float(v),
+  if not numberp(v_f) then
+    error("signal_set: value must coerce to a float; got: ", v),
+  if kind = 'checkbox and v_f # 0.0 and v_f # 1.0 then
+    error("signal_set: checkbox value must be 0 or 1; got: ", v_f),
+  if kind = 'dropdown and not member(v_f, assoc('choices, entry)) then
+    error("signal_set: value not in dropdown choices; got: ", v_f,
+          " choices: ", assoc('choices, entry)),
+  ?reactive\-put\-entry(assoc('name, entry),
+    map(lambda([eq], if lhs(eq) = 'value then 'value = v_f else eq),
+        entry)),
+  v_f)$
 
 /* ============================================================
  * Resolution: substitute every signal in EXPR with its
@@ -188,7 +222,7 @@ signal_set(target, value) := block([name, entry, kind, value_f],
 /* collect_signals(expr) -- return a list of unique signal names
  *   that appear anywhere in EXPR, in walk order. */
 collect_signals(expr) := block(
-  [seen: [], walker, drive],
+  [seen: [], walker],
   walker: lambda([e],
     if signal_p(e) then block([n: signal_name(e)],
       if not member(n, seen) then seen: endcons(n, seen))
@@ -196,15 +230,13 @@ collect_signals(expr) := block(
   walker(expr),
   seen)$
 
-/* resolve_signals(expr) -- substitute every signal(name) form
- *   with the signal's current numeric value. */
+/* resolve_signals(expr) -- substitute every signal form with the
+ *   signal's current numeric value. */
 resolve_signals(expr) := block(
   [names: collect_signals(expr), substs],
   if names = [] then expr
   else (
-    substs: map(lambda([n],
-                  funmake(nounify('signal), [n]) = signal_value(n)),
-                names),
+    substs: map(lambda([n], reactive__form(n) = signal_value(n)), names),
     subst(substs, expr)))$
 
 /* ============================================================

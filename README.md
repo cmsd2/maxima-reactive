@@ -23,13 +23,13 @@ mxpm install --path . --editable
 load("reactive")$
 
 k : widget_slider("frequency", 0.1, 5)$
-/* k is the noun form signal("frequency"); its current value is 0.1 */
+/* k is the noun form signal(frequency); its current value is 0.1 */
 
 expr : sin(k*x)$
-/* sin(signal("frequency") * x) — the signal stays symbolic */
+/* sin(signal(frequency) * x) — the signal stays symbolic */
 
 diff(expr, x)$
-/* signal("frequency") * cos(signal("frequency") * x)
+/* signal(frequency) * cos(signal(frequency) * x)
  *   — symbolic differentiation works without resolving */
 
 resolve_signals(expr)$            /* sin(0.1*x) */
@@ -46,18 +46,26 @@ resolve_signals(expr)$            /* sin(2.5*x) */
 | `widget_number(name, lo, hi, initial)` | numeric text input; initial value `initial` |
 | `widget_checkbox(name, initial)` | boolean stored as `0.0` / `1.0`; accepts `true` / `false` / `0` / `1` |
 | `widget_dropdown(name, choices)` | discrete pick from a list of numbers; initial = first choice |
+| `signal(name)` | noun form for an already-registered signal, for typing `sin(signal("freq")*x)` by hand |
 | `signal_p(x)` | `true` iff `x` is a signal noun form |
-| `signal_name(x)` | extract the name from a signal noun form |
+| `signal_name(x)` | extract the name string from a signal noun form |
 | `signal_value(target)` | current numeric value (accepts name string or noun form) |
-| `signal_meta(target)` | full registry entry `[name, lo, hi, current, kind, extras]` (extras is `[]` except for dropdown, where it carries the choices list) |
+| `signal_kind(target)` | `slider`, `number`, `checkbox` or `dropdown` |
+| `signal_field(target, key)` | one field of the registry entry, or `false` if absent |
+| `signal_meta(target)` | full registry entry as equations: `[name = "freq", kind = slider, lo = 0.1, hi = 5.0, value = 0.1]`; dropdowns add `choices = [...]` |
 | `signal_list()` | sorted list of every registered signal name |
 | `signal_set(target, v)` | update the current value; returns the new float.  Validates against the registered widget kind (booleans for checkbox, choices list for dropdown). |
 | `collect_signals(expr)` | walk `expr`, return a list of unique signal names |
 | `resolve_signals(expr)` | substitute every signal in `expr` with its current value |
 | `reactive_reset()` | drop every registered signal (tests / notebook re-runs) |
 
-All `widget_*` constructors return a `signal(name)` noun form, which
-is what you embed in expressions.
+All `widget_*` constructors return a signal noun form, which is what
+you embed in expressions.  Names must be 1–128 ASCII letters, digits
+or underscores, the same rule the aximar host applies when a slider
+moves.
+
+Read registry fields by key with `signal_field` / `signal_kind`, not
+by position: later widget kinds will add fields.
 
 ## What v0 deliberately doesn't do
 

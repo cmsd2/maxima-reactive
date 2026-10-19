@@ -22,15 +22,41 @@ true;
 signal_name(widget_slider("alpha", 0, 1));
 "alpha";
 
-/* Meta carries the full entry, with an empty extras slot for slider */
+/* Meta carries the full entry as key = value equations */
 (reactive_reset(), signal_meta(widget_slider("g", 0, 9.8)));
-["g", 0.0, 9.8, 0.0, slider, []];
+[name = "g", kind = slider, lo = 0.0, hi = 9.8, value = 0.0];
 
 /* ============================================================
  * Constructor validation
  * ============================================================ */
 
 errcatch(widget_slider(123, 0, 1));     /* non-string name */
+[];
+
+/* Names are limited to what the aximar host accepts:
+   1-128 ASCII letters, digits, underscores */
+errcatch(widget_slider("has space", 0, 1));
+[];
+
+errcatch(widget_slider("ω", 0, 1));
+[];
+
+errcatch(widget_slider("", 0, 1));
+[];
+
+errcatch(widget_slider(smake(129, "x"), 0, 1));
+[];
+
+(reactive_reset(), signal_name(widget_slider("alpha_2", 0, 1)));
+"alpha_2";
+
+errcatch(widget_number("a b", 0, 1, 0));
+[];
+
+errcatch(widget_checkbox("a b", true));
+[];
+
+errcatch(widget_dropdown("a b", [1, 2]));
 [];
 
 errcatch(widget_slider("x", "bad", 1)); /* non-numeric bound */
@@ -73,7 +99,7 @@ errcatch(signal_value("does_not_exist"));
 (reactive_reset(),
  widget_slider("k", 0, 10),
  signal_set("k", 2.5),
- fourth(signal_meta("k")));
+ signal_field("k", value));
 2.5;
 
 /* set returns the float value */
@@ -93,8 +119,8 @@ errcatch(signal_set("nope", 1));
 /* sin(k*x) keeps k symbolic */
 (reactive_reset(),
  block([k: widget_slider("k", 0, 5)],
-   diff(sin(k*x), x)));
-'signal("k") * cos('signal("k") * x);
+   is(diff(sin(k*x), x) = k * cos(k * x))));
+true;
 
 /* ============================================================
  * collect_signals walks the expression tree
@@ -103,13 +129,13 @@ errcatch(signal_set("nope", 1));
 (reactive_reset(),
  widget_slider("a", 0, 1),
  widget_slider("b", 0, 1),
- sort(collect_signals('signal("a") + 'signal("b") * x)));
+ sort(collect_signals(signal("a") + signal("b") * x)));
 ["a", "b"];
 
 /* Duplicates collapsed to a single entry */
 (reactive_reset(),
  widget_slider("a", 0, 1),
- collect_signals('signal("a") * 'signal("a") + 'signal("a")));
+ collect_signals(signal("a") * signal("a") + signal("a")));
 ["a"];
 
 /* No signals → empty */
@@ -119,7 +145,7 @@ collect_signals(sin(x) + cos(x));
 /* Nested deep */
 (reactive_reset(),
  widget_slider("c", 0, 1),
- collect_signals(diff(integrate(sin('signal("c") * x), x), x)));
+ collect_signals(diff(integrate(sin(signal("c") * x), x), x)));
 ["c"];
 
 /* ============================================================
@@ -129,7 +155,7 @@ collect_signals(sin(x) + cos(x));
 (reactive_reset(),
  widget_slider("k", 0.1, 5),
  signal_set("k", 2.0),
- resolve_signals(sin('signal("k") * x)));
+ resolve_signals(sin(signal("k") * x)));
 sin(2.0 * x);
 
 /* Multiple signals */
@@ -138,7 +164,7 @@ sin(2.0 * x);
  widget_slider("b", 0, 1),
  signal_set("a", 0.3),
  signal_set("b", 0.7),
- resolve_signals('signal("a") + 'signal("b")));
+ resolve_signals(signal("a") + signal("b")));
 1.0;
 
 /* Pass-through when no signals */
@@ -172,7 +198,7 @@ true;
 
 /* Meta carries kind=number and the supplied bounds */
 (reactive_reset(), signal_meta(widget_number("n", 0, 10, 3)));
-["n", 0.0, 10.0, 3.0, number, []];
+[name = "n", kind = number, lo = 0.0, hi = 10.0, value = 3.0];
 
 /* Initial out of range errors */
 errcatch(widget_number("n", 0, 10, 99));
@@ -206,7 +232,7 @@ true;
 1.0;
 
 (reactive_reset(), signal_meta(widget_checkbox("on", true)));
-["on", 0.0, 1.0, 1.0, checkbox, []];
+[name = "on", kind = checkbox, lo = 0.0, hi = 1.0, value = 1.0];
 
 /* signal_set with true/false */
 (reactive_reset(),
@@ -250,9 +276,10 @@ true;
 1.0;
 
 /* Meta carries kind=dropdown, lo=min(choices), hi=max(choices),
-   and the full choices list in slot 6 */
+   and the full choices list */
 (reactive_reset(), signal_meta(widget_dropdown("pick", [1, 2, 5, 10])));
-["pick", 1.0, 10.0, 1.0, dropdown, [1.0, 2.0, 5.0, 10.0]];
+[name = "pick", kind = dropdown, lo = 1.0, hi = 10.0, value = 1.0,
+ choices = [1.0, 2.0, 5.0, 10.0]];
 
 /* signal_set with a value in the choices list */
 (reactive_reset(),
@@ -290,6 +317,108 @@ errcatch(widget_dropdown("pick", [1, "two", 3]));
  widget_dropdown("d", [1, 2]),
  sort(signal_list()));
 ["c", "d", "n", "s"];
+
+/* ============================================================
+ * signal(name) and the noun form
+ * ============================================================ */
+
+/* signal("name") returns the same form the constructor returned */
+(reactive_reset(),
+ block([k: widget_slider("k", 0, 1)], is(signal("k") = k)));
+true;
+
+/* signal() on an unregistered name errors */
+(reactive_reset(), errcatch(signal("nope")));
+[];
+
+/* A hand-built noun with a string argument is not a signal */
+signal_p(funmake(nounify('signal), ["k"]));
+false;
+
+/* Re-evaluating with nouns keeps the signal intact */
+(reactive_reset(),
+ block([k: widget_slider("k", 0, 1)], signal_p(ev(k, nouns))));
+true;
+
+/* A user variable with the same name as the signal does not
+   capture it on re-evaluation */
+(reactive_reset(),
+ block([k: widget_slider("freq", 0, 1), freq: 3],
+   collect_signals(ev(sin(k * x)))));
+["freq"];
+
+/* Names differing only in case are distinct signals */
+(reactive_reset(),
+ widget_slider("freq", 0, 1),
+ widget_slider("Freq", 0, 1),
+ [signal_name(signal("Freq")), is(signal("freq") = signal("Freq"))]);
+["Freq", false];
+
+/* ============================================================
+ * Signals through Maxima's symbolic functions.  A string argument
+ * inside the noun used to raise a Lisp error in limit and definite
+ * integrate; they now return unevaluated nouns.
+ * ============================================================ */
+
+(reactive_reset(),
+ block([k: widget_slider("k", 0.1, 5)],
+   is(op(integrate(exp(-k * x), x, 0, inf)) = nounify(integrate))));
+true;
+
+(reactive_reset(),
+ block([k: widget_slider("k", 0.1, 5)],
+   is(op(limit(exp(-k * x), x, inf)) = nounify(limit))));
+true;
+
+(reactive_reset(),
+ block([k: widget_slider("k", 0.1, 5)],
+   resolve_signals(integrate(sin(k * x), x, 0, %pi))));
+1/0.1 - cos(0.1 * %pi)/0.1;
+
+(reactive_reset(),
+ block([k: widget_slider("k", 0.1, 5)],
+   is(solve(k * x^2 = 1, x) = [x = -1/sqrt(k), x = 1/sqrt(k)])));
+true;
+
+(reactive_reset(),
+ block([k: widget_slider("k", 0.1, 5)],
+   ratsimp(taylor(sin(k * x), x, 0, 3) - (k * x - k^3 * x^3 / 6))));
+0;
+
+/* ============================================================
+ * Keyed fields: signal_field / signal_kind
+ * ============================================================ */
+
+(reactive_reset(),
+ widget_slider("k", 0, 10),
+ [signal_field("k", lo), signal_field("k", hi), signal_kind("k")]);
+[0.0, 10.0, slider];
+
+/* Missing field → false */
+(reactive_reset(),
+ widget_slider("k", 0, 10),
+ signal_field("k", choices));
+false;
+
+(reactive_reset(),
+ widget_dropdown("d", [1, 2]),
+ signal_field(signal("d"), choices));
+[1.0, 2.0];
+
+/* User bindings of the key symbols don't disturb lookups */
+(reactive_reset(),
+ widget_slider("k", 0, 10),
+ block([value: 99, name: 98, kind: 97],
+   [signal_value("k"), signal_kind("k"), signal_field("k", 'value)]));
+[0.0, slider, 0.0];
+
+/* signal_set only replaces the value field */
+(reactive_reset(),
+ widget_dropdown("d", [1, 2, 5]),
+ signal_set("d", 5),
+ signal_meta("d"));
+[name = "d", kind = dropdown, lo = 1.0, hi = 5.0, value = 5.0,
+ choices = [1.0, 2.0, 5.0]];
 
 (reactive_reset(), true);
 true;
