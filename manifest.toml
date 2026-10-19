@@ -1,7 +1,7 @@
 [package]
 name = "reactive"
 version = "0.1.0"
-description = "First-class signals for Maxima — identity-bearing parameter objects that survive symbolic processing and resolve to numeric values on demand."
+description = "Named, bounded parameters for Maxima that drive sliders and interactive plots"
 license = "MIT"
 repository = "https://github.com/cmsd2/maxima-reactive"
 keywords = ["reactive", "signals", "widgets", "sliders", "parameters"]
